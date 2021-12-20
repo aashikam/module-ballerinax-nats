@@ -40,6 +40,19 @@ const ISOLATED_SUBJECT_NAME = "nats-isolated";
 
 isolated boolean messageRecceived = false;
 isolated boolean requestRecceived = false;
+isolated string receivedQueueMessage;
+
+isolated function setReceivedQueueMessage(string message) {
+    lock {
+        receivedQueueMessage = message;
+    }
+}
+
+isolated function getReceivedQueueMessage() returns string {
+    lock {
+        return receivedQueueMessage;
+    }
+}
 
 isolated function updateMessageRecceived(boolean state) {
     lock {
@@ -306,7 +319,8 @@ public function testConsumerServiceWithQueue() {
         checkpanic sub.attach(queueService);
         checkpanic sub.'start();
         checkpanic newClient->publishMessage({ content: message.toBytes(), subject: QUEUE_GROUP_SUBJECT });
-        runtime:sleep(25);
+        future<string|error> getMessage = start getReceivedQueueMessage();
+        string receivedQueueMessage = check wait getMessage;
         test:assertEquals(receivedQueueMessage, message, msg = "Message received does not match.");
         checkpanic sub.detach(queueService);
         checkpanic sub.gracefulStop();
@@ -607,7 +621,7 @@ service object {
 
         string|error message = strings:fromBytes(messageContent);
         if message is string {
-            receivedQueueMessage = message;
+            setReceivedQueueMessage(message);
             log:printInfo("Message Received for queue group: " + message);
         }
     }
